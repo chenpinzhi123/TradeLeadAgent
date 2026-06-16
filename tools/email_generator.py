@@ -26,8 +26,8 @@ EMAIL_GEN_PROMPT = """\
 接触建议: {approach}
 
 【要求】
-1. 语言: {language}（中文 或 English）
-2. 长度: 150-250字（英文120-180词）
+1. 语言: {language}（中文 / English / Español）
+2. 长度: 中文150-250字；英文120-180词；西班牙文120-180词
 3. 语气: 专业、简洁、不推销感太强
 4. 必须包含: 我是谁、为什么联系你、我能提供什么价值、明确的CTA（行动号召）
 5. 不要使用"希望能和您合作"这类空话，要有具体价值点
@@ -91,6 +91,60 @@ WhatsApp: {whatsapp}
 附上我们的产品目录供参考。如有需求，欢迎随时联系。
 
 此致
+{person_name}
+""",
+}
+
+EMAIL_TEMPLATES_ES = {
+    "高": """Asunto: Oportunidad de suministro de {product} - Fabricante directo en China
+
+Estimado equipo de compras:
+
+Espero que este correo les encuentre bien. Les escribo para presentar nuestras capacidades de fabricación de {product}. Identificamos su empresa a través de {source} y creemos que hay una gran compatibilidad.
+
+Por qué considerarnos:
+- Precios directos de fábrica (10-15% por debajo de comercantes)
+- Certificados {Standard}, exportando a {market} desde hace {Years} años
+- MOQ flexible, OEM/ODM soportado
+- Muestras disponibles vía DHL (flete por cobrar)
+
+Puedo proporcionar dentro de las 24 horas:
+✓ Catálogo de productos y última cotización
+✓ Clientes de referencia en su región
+✓ Informe de auditoría de fábrica (si es necesario)
+
+¿Estarían abiertos a una breve llamada de presentación o recibir nuestro catálogo?
+
+Atentamente,
+{person_name}
+{company_name_en}
+WhatsApp: {whatsapp}
+""",
+    "中": """Asunto: Fabricante de {product} - China Directo
+
+Hola:
+
+Fabricamos {product} y exportamos principalmente a {market}.
+
+Especificaciones rápidas:
+- Capacidad: {capacity}/mes
+- Certificaciones: {Certification}
+- Tiempo de entrega: {Delivery}
+
+Si está buscando diversificar su base de proveedores o necesita una cotización, no dude en responder. Muestras gratuitas disponibles.
+
+Atentamente,
+{person_name}
+""",
+    "低": """Asunto: Introducción de proveedor de {product}
+
+Hola:
+
+Somos un fabricante de {product} con base en China. Llegué a su sitio web y pensé que podría haber una oportunidad de colaborar.
+
+Adjunto está nuestro catálogo de productos para su referencia. Seré feliz de proporcionar una cotización si tiene requisitos específicos.
+
+Atentamente,
 {person_name}
 """,
 }
@@ -166,9 +220,11 @@ def generate_email(
     """
     # 自动判断语言
     if language == "auto":
-        # 根据目标市场判断
-        if target_market in ["中国", "东南亚", "中东"]:
+        spanish_markets = ["墨西哥", "西班牙", "南美"]
+        if target_market in ["中国", "东南亚", "中东"] or target_market in ["日本", "韩国"]:
             language = "zh"
+        elif target_market in spanish_markets:
+            language = "es"
         else:
             language = "en"
 
@@ -201,7 +257,7 @@ def _llm_generate(
         description=lead.get("description", "")[:300],
         priority=lead.get("priority", "中"),
         approach=lead.get("suggested_approach", ""),
-        language="中文" if language == "zh" else "English",
+        language="中文" if language == "zh" else ("Español" if language == "es" else "English"),
     )
 
     try:
@@ -268,6 +324,8 @@ def _template_generate(
 
     if language == "zh":
         template = EMAIL_TEMPLATES_ZH.get(priority, EMAIL_TEMPLATES_ZH["中"])
+    elif language == "es":
+        template = EMAIL_TEMPLATES_ES.get(priority, EMAIL_TEMPLATES_ES["中"])
     else:
         template = EMAIL_TEMPLATES_EN.get(priority, EMAIL_TEMPLATES_EN["中"])
 
@@ -275,8 +333,11 @@ def _template_generate(
     for k, v in placeholders.items():
         body = body.replace(k, str(v))
 
-    # 提取主题行
-    subject_line = body.split("\n")[0].replace("主题：", "").replace("Subject: ", "").strip()
+    # 提取主题行（支持中文/英文/西班牙文）
+    first_line = body.split("\n")[0]
+    for prefix in ["主题：", "Subject: ", "Asunto: "]:
+        first_line = first_line.replace(prefix, "")
+    subject_line = first_line.strip()
 
     return {
         "subject": subject_line,

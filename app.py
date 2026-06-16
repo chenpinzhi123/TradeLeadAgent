@@ -28,20 +28,19 @@ from utils.helpers import setup_logging, export_to_excel, format_lead_card
 
 setup_logging()
 
+# ============ Session State 初始化 ============
+if "target_market_key" not in st.session_state:
+    # 用索引而非字符串，避免 key 不匹配
+    st.session_state.target_market_key = 0   # 0 = 第一个市场
+if "promote_myself" not in st.session_state:
+    st.session_state.promote_myself = False
+
 # ============ 页面配置 ============
 st.set_page_config(
     page_title="TradeLeadAgent - 外贸客户线索搜索",
     page_icon="🌍",
     layout="wide",
 )
-
-# ============ Session State 初始化 ============
-if "target_market_sel" not in st.session_state:
-    st.session_state.target_market_sel = list(config.MARKET_KEYWORDS.keys())[0]
-if "target_market_custom" not in st.session_state:
-    st.session_state.target_market_custom = ""
-if "data_sources" not in st.session_state:
-    st.session_state.data_sources = ["Web搜索", "商业目录"]
 
 # ============ 侧边栏 ============
 with st.sidebar:
@@ -75,79 +74,116 @@ with st.sidebar:
 st.title("🌍 外贸客户线索搜索 Agent")
 st.caption("输入你的产品和目标市场，让AI帮你找客户")
 
-# ============ 目标市场选择（在表单外部，支持动态切换）============
-st.subheader("🎯 目标市场")
-col_m1, col_m2 = st.columns([1, 2])
-with col_m1:
-    target_market_sel = st.selectbox(
-        "选择目标市场",
-        options=list(config.MARKET_KEYWORDS.keys()) + ["自定义"],
-        index=0,
-        key="target_market_sel",
-        label_visibility="collapsed",
-    )
-with col_m2:
-    if st.session_state.target_market_sel == "自定义":
-        target_market_custom = st.text_input(
-            "输入目标市场",
-            value=st.session_state.target_market_custom,
-            placeholder="例如：Brazil、France、Nigeria",
-            key="target_market_custom",
-            label_visibility="collapsed",
-        )
-    else:
-        st.markdown("")  # 占位，保持布局
+# ============ 输入表单（所有控件在同一框架内）============
+st.subheader("🔍 搜索条件")
 
-# 最终使用的目标市场
-final_target_market = (
-    st.session_state.target_market_custom.strip()
-    if st.session_state.target_market_sel == "自定义"
-    else st.session_state.target_market_sel
+# 第一行：产品 + 目标市场
+col1, col2 = st.columns(2)
+
+with col1:
+    product = st.text_input(
+        "🔧 产品名称 *",
+        placeholder="例如：LED显示屏、不锈钢紧固件、光伏组件",
+        help="尽量用目标市场的语言描述产品",
+        key="product_input",
+    )
+
+    # 目标市场选择
+    market_options = list(config.MARKET_KEYWORDS.keys()) + ["自定义"]
+    target_market_sel = st.selectbox(
+        "🎯 目标市场",
+        options=market_options,
+        index=0,
+        key="target_market_key",
+    )
+    # 始终显示自定义输入框，disabled 状态动态切换
+    custom_market = st.text_input(
+        "✏️ 自定义目标市场",
+        placeholder="例如：Brazil、France、Nigeria",
+        disabled=(target_market_sel != "自定义"),
+        help="仅当上方选择「自定义」时填写此栏",
+    )
+    # 最终目标市场
+    final_target_market = custom_market.strip() if target_market_sel == "自定义" else target_market_sel
+
+with col2:
+    buyer_type = st.selectbox(
+        "👥 客户类型",
+        options=["importer", "distributor", "wholesaler", "retailer"],
+        index=0,
+        key="buyer_type",
+    )
+    max_results = st.slider("📊 搜索结果数量", 10, 50, 20, key="max_results")
+
+    language = st.selectbox(
+        "📧 开发信语言",
+        options=["auto", "中文", "English", "Español"],
+        index=0,
+        help="auto：根据目标市场自动选择",
+        key="language_sel",
+    )
+
+    data_sources = st.multiselect(
+        "📡 数据源（可多选）",
+        options=["Web搜索", "商业目录", "LinkedIn", "社交媒体"],
+        default=["Web搜索", "商业目录", "LinkedIn", "社交媒体"],
+        help="LinkedIn/社交媒体需要网络访问，可能增加搜索时间",
+        key="data_sources",
+    )
+
+# ---- 发件人信息（用于生成开发信）----
+st.divider()
+st.subheader("✉️ 发件人信息（可选，用于生成开发信）")
+col_a, col_b = st.columns(2)
+with col_a:
+    sender_name = st.text_input("你的姓名/公司联系人", "", key="sender_name")
+    sender_company = st.text_input("公司名称", "", key="sender_company")
+with col_b:
+    whatsapp = st.text_input("WhatsApp（带国际区号）", "", key="whatsapp")
+    company_strength = st.text_area("公司优势（一句话）", "", height=80, key="company_strength")
+
+# ---- 推广我自己（表单外部，动态响应）----
+st.divider()
+promote_myself = st.checkbox(
+    "🌟 同时推广我自己（将我的信息注入各渠道）",
+    value=False,
+    key="promote_myself",
+    help="开启后，可生成用于发布到社交媒体、商业目录的推广内容，帮助潜在客户找到你",
 )
 
-# ============ 输入表单 ============
-with st.form("search_form"):
-    col1, col2 = st.columns(2)
+if promote_myself:
+    with st.expander("📢 推广内容设置", expanded=True):
+        st.caption("以下内容将用于生成推广文案，发布到 LinkedIn / Facebook / 商业目录等渠道")
+        col_p1, col_p2 = st.columns(2)
+        with col_p1:
+            promote_product = st.text_input(
+                "推广产品/服务",
+                value=product,
+                placeholder="产品名称",
+                key="promote_product",
+            )
+            promote_website = st.text_input(
+                "公司网址",
+                placeholder="https://www.yourcompany.com",
+                key="promote_website",
+            )
+        with col_p2:
+            _default_markets = [final_target_market] if final_target_market else []
+            promote_markets = st.multiselect(
+                "目标推广市场",
+                options=list(config.MARKET_KEYWORDS.keys()) + ["自定义"],
+                default=_default_markets,
+                key="promote_markets",
+            )
+            promote_channels = st.multiselect(
+                "推广渠道",
+                options=["LinkedIn动态", "Facebook主页", "商业目录提交", "Twitter/X"],
+                default=["LinkedIn动态", "商业目录提交"],
+                key="promote_channels",
+            )
 
-    with col1:
-        product = st.text_input(
-            "🔧 产品名称",
-            placeholder="例如：LED显示屏、不锈钢紧固件、光伏组件",
-            help="尽量用目标市场的语言描述产品",
-        )
-        buyer_type = st.selectbox(
-            "👥 客户类型",
-            options=["importer", "distributor", "wholesaler", "retailer"],
-            index=0,
-        )
-        max_results = st.slider("📊 搜索结果数量", 10, 50, 20)
-
-    with col2:
-        language = st.selectbox(
-            "📧 开发信语言",
-            options=["auto", "中文", "English", "Español"],
-            index=0,
-            help="auto：根据目标市场自动选择",
-        )
-        data_sources = st.multiselect(
-            "📡 数据源（可多选）",
-            options=["Web搜索", "商业目录", "LinkedIn", "社交媒体"],
-            default=["Web搜索", "商业目录"],
-            help="LinkedIn/社交媒体需要网络访问，可能增加搜索时间",
-        )
-        st.caption(f"当前目标市场：**{final_target_market}**")
-
-    # 发件人信息（用于生成开发信）
-    with st.expander("✉️ 发件人信息（可选，用于生成开发信）"):
-        col_a, col_b = st.columns(2)
-        with col_a:
-            sender_name = st.text_input("你的姓名/公司联系人", "")
-            sender_company = st.text_input("公司名称", "")
-        with col_b:
-            whatsapp = st.text_input("WhatsApp（带国际区号）", "")
-            company_strength = st.text_area("公司优势（一句话）", "", height=80)
-
-    submitted = st.form_submit_button("🚀 开始搜索", use_container_width=True)
+# 搜索按钮（不在 form 内，直接触发）
+submitted = st.button("🚀 开始搜索", use_container_width=True, type="primary")
 
 # ============ 主逻辑 ============
 if submitted:
@@ -155,8 +191,8 @@ if submitted:
         st.error("⚠️ 请输入产品名称")
         st.stop()
 
-    if st.session_state.target_market_sel == "自定义" and not st.session_state.target_market_custom.strip():
-        st.error("⚠️ 请在「自定义」中输入目标市场")
+    if target_market_sel == "自定义" and not custom_market.strip():
+        st.error("⚠️ 请在「自定义目标市场」中输入市场名称")
         st.stop()
 
     target_market = final_target_market
@@ -167,13 +203,14 @@ if submitted:
 
     all_leads = []
     step_weight = 0.0
+    total_sources = len(data_sources)
 
     # Web 搜索
     if "Web搜索" in data_sources:
         with st.spinner("正在从Web搜索潜在客户..."):
             web_results = search_web(product, target_market, max_results, buyer_type)
             step_weight += 0.2
-            progress.progress(step_weight, text=f"Web搜索完成，找到 {len(web_results)} 条")
+            progress.progress(min(step_weight, 0.45), text=f"Web搜索完成，找到 {len(web_results)} 条")
             all_leads.extend(web_results)
 
     # 商业目录搜索
@@ -181,23 +218,23 @@ if submitted:
         with st.spinner("正在搜索商业目录..."):
             dir_results = search_business_directories(product, target_market, max_results // 2)
             step_weight += 0.15
-            progress.progress(step_weight, text=f"目录搜索完成，找到 {len(dir_results)} 条")
+            progress.progress(min(step_weight, 0.45), text=f"目录搜索完成，找到 {len(dir_results)} 条")
             all_leads.extend(dir_results)
 
     # LinkedIn 搜索
     if "LinkedIn" in data_sources:
         with st.spinner("正在搜索 LinkedIn..."):
             linkedin_results = search_linkedin(product, target_market, max_results // 3)
-            step_weight += 0.15
-            progress.progress(step_weight, text=f"LinkedIn搜索完成，找到 {len(linkedin_results)} 条")
+            step_weight += 0.10
+            progress.progress(min(step_weight, 0.45), text=f"LinkedIn搜索完成，找到 {len(linkedin_results)} 条")
             all_leads.extend(linkedin_results)
 
     # 社交媒体搜索
     if "社交媒体" in data_sources:
         with st.spinner("正在搜索社交媒体（Facebook/Instagram）..."):
             social_results = search_social_media(product, target_market, max_results // 3)
-            step_weight += 0.1
-            progress.progress(step_weight, text=f"社交媒体搜索完成，找到 {len(social_results)} 条")
+            step_weight += 0.10
+            progress.progress(min(step_weight, 0.45), text=f"社交媒体搜索完成，找到 {len(social_results)} 条")
             all_leads.extend(social_results)
 
     all_leads = deduplicate_leads(all_leads)
@@ -284,6 +321,31 @@ if submitted:
                     st.markdown(f"**主题:** {lead['email_subject']}")
                     st.markdown(f"**正文:**\n\n{lead['email_body']}")
 
+    # 步骤4.5: 推广我自己
+    if promote_myself and config.LLM_API_KEY:
+        st.header("🌟 第4.5步：生成推广内容")
+        st.success("✅ 推广内容生成完成！以下是可用于发布的内容：")
+
+        # 这里调用 LLM 生成推广内容
+        from tools.promote_generator import generate_promote_content
+
+        promote_contents = generate_promote_content(
+            product=promote_product or product,
+            company=sender_company or "我司",
+            website=promote_website,
+            markets=promote_markets if promote_markets else [target_market],
+            channels=promote_channels,
+            sender_name=sender_name,
+            whatsapp=whatsapp,
+            company_strength=company_strength,
+            language=language,
+        )
+
+        for channel, content in promote_contents.items():
+            with st.expander(f"📢 {channel}", expanded=True):
+                st.markdown(content)
+                st.button(f"📋 复制", key=f"copy_{channel}", on_click=lambda: None)
+
     progress.progress(1.0, text="全部完成！")
 
     # 步骤5: 导出
@@ -306,11 +368,11 @@ else:
     # 未提交时显示使用说明
     st.info("""
     👈 **开始使用：**
-    1. 选择目标市场（支持自定义输入）
-    2. 输入产品名称
-    3. 选择数据源（Web/商业目录/LinkedIn/社交媒体）
-    4. 点击「开始搜索」
-    5. 等待AI自动完成搜索、抓取、评分、生成开发信
+    1. 输入产品名称，选择目标市场（支持自定义）
+    2. 选择数据源（Web/商业目录/LinkedIn/社交媒体，默认全选）
+    3. 填写发件人信息（可选）
+    4. 开启「推广我自己」可生成社媒/目录推广内容
+    5. 点击「开始搜索」
     6. 下载Excel文件
 
     💡 **提示：** 配置 `.env` 文件中的 `LLM_API_KEY` 可启用AI评分和开发信生成
@@ -328,5 +390,5 @@ else:
         st.markdown("### 🤖 AI赋能")
         st.caption("LLM评分 + 多语言开发信生成")
     with col4:
-        st.markdown("### 🌍 全球市场")
-        st.caption("支持全球目标市场，含自定义")
+        st.markdown("### 🌟 推广助手")
+        st.caption("生成社媒/目录内容，让客户找到你")
