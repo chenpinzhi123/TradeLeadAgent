@@ -147,3 +147,74 @@ def deduplicate_leads(leads: List[Dict]) -> List[Dict]:
             seen.add(url)
             unique.append(lead)
     return unique
+
+
+def _search_with_ddgs(queries: List[str], max_per_query: int, source_label: str) -> List[Dict]:
+    """通用 DDGS 搜索辅助函数"""
+    results = []
+    seen_urls = set()
+    with DDGS() as ddgs:
+        for query in queries:
+            try:
+                logger.info(f"[{source_label}] 搜索: {query}")
+                search_results = list(ddgs.text(
+                    query,
+                    max_results=max_per_query,
+                    region="wt-wt",
+                ))
+                for r in search_results:
+                    url = r.get("href", "")
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        results.append({
+                            "title": r.get("title", ""),
+                            "url": url,
+                            "snippet": r.get("body", ""),
+                            "source": source_label,
+                            "query": query,
+                        })
+                time.sleep(1)
+            except Exception as e:
+                logger.warning(f"[{source_label}] 搜索失败 [{query}]: {e}")
+                continue
+    return results
+
+
+def search_linkedin(
+    product: str,
+    target_market: str,
+    max_results: int = 10,
+) -> List[Dict]:
+    """
+    搜索 LinkedIn 上的采购经理 / 进口商联系人
+    返回潜在客户列表
+    """
+    market_suffix = config.MARKET_KEYWORDS.get(target_market, target_market)
+    queries = [
+        f'site:linkedin.com/in {product} {market_suffix} procurement manager email',
+        f'site:linkedin.com/in {product} {market_suffix} importer',
+        f'site:linkedin.com/in {product} {market_suffix} purchasing manager',
+        f'"{product}" {market_suffix} site:linkedin.com "contact" "email"',
+    ]
+    per_query = max(2, max_results // len(queries) + 1)
+    return _search_with_ddgs(queries, per_query, "linkedin")
+
+
+def search_social_media(
+    product: str,
+    target_market: str,
+    max_results: int = 10,
+) -> List[Dict]:
+    """
+    搜索 Facebook / Instagram 等社交媒体上的商家主页
+    返回潜在客户列表
+    """
+    market_suffix = config.MARKET_KEYWORDS.get(target_market, target_market)
+    queries = [
+        f'site:facebook.com {product} {market_suffix} importer "contact us"',
+        f'site:instagram.com {product} {market_suffix} distributor',
+        f'{product} {market_suffix} facebook page importer distributor',
+        f'"{product}" {market_suffix} "facebook.com" "email" OR "contact"',
+    ]
+    per_query = max(2, max_results // len(queries) + 1)
+    return _search_with_ddgs(queries, per_query, "social_media")
