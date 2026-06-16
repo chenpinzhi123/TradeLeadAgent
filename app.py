@@ -62,12 +62,14 @@ with st.sidebar:
 
         **工作流程：**
         1. 输入产品和目标市场
-        2. 自动搜索潜在进口商/分销商
-        3. 抓取联系方式
+        2. 自动搜索潜在进口商/分销商（Web/目录/LinkedIn/社媒）
+        3. 过滤无关结果，抓取联系方式
         4. AI评分 + 生成开发信
-        5. 导出Excel
+        5. 可选：生成推广文案（手动发布到社媒/目录）
+        6. 导出Excel
 
         **数据源：** Web搜索 / 商业目录 / LinkedIn / 社交媒体（可选）
+        **推广功能：** 生成可手动发布的文案，不会自动发布
         """)
 
 # ============ 主界面 ============
@@ -145,15 +147,16 @@ with col_b:
 # ---- 推广我自己（表单外部，动态响应）----
 st.divider()
 promote_myself = st.checkbox(
-    "🌟 同时推广我自己（将我的信息注入各渠道）",
+    "🌟 同时生成推广文案（被动获客）",
     value=False,
     key="promote_myself",
-    help="开启后，可生成用于发布到社交媒体、商业目录的推广内容，帮助潜在客户找到你",
+    help="开启后，AI会生成可直接复制到 LinkedIn / Facebook / 商业目录 / Twitter 的文案，让买家主动找到你。不会自动发布。",
 )
 
 if promote_myself:
     with st.expander("📢 推广内容设置", expanded=True):
-        st.caption("以下内容将用于生成推广文案，发布到 LinkedIn / Facebook / 商业目录等渠道")
+        st.caption("以下内容将用于生成推广文案。你需要手动复制文案到各平台发布，系统不会自动发布。")
+
         col_p1, col_p2 = st.columns(2)
         with col_p1:
             promote_product = st.text_input(
@@ -244,12 +247,15 @@ if submitted:
         st.warning("未找到结果，请尝试调整搜索关键词或目标市场")
         st.stop()
 
-    # 预览搜索结果
-    with st.expander("👀 预览搜索结果", expanded=True):
-        preview_data = [{"公司名称": l["title"], "网址": l["url"], "来源": l["source"]} for l in all_leads[:10]]
-        st.dataframe(preview_data, use_container_width=True)
-        if len(all_leads) > 10:
-            st.caption(f"...还有 {len(all_leads) - 10} 条结果")
+    # 预览搜索结果 — 按来源分组展示，全部可见（Streamlit dataframe 自带分页）
+    with st.expander("👀 预览搜索结果（全部）", expanded=True):
+        source_counts = {}
+        for l in all_leads:
+            source_counts[l.get("source", "unknown")] = source_counts.get(l.get("source", "unknown"), 0) + 1
+        st.caption(f"📊 来源分布: {' | '.join(f'{k}: {v}' for k, v in source_counts.items())}")
+        preview_data = [{"公司名称": l["title"], "网址": l["url"], "来源": l["source"], "搜索query": l.get("query", "")} for l in all_leads]
+        st.dataframe(pd.DataFrame(preview_data), use_container_width=True, height=400)
+        st.caption(f"共 {len(all_leads)} 条结果，可拖动表格右下角调整显示行数")
 
     progress.progress(0.5, text="开始抓取联系方式...")
 
@@ -323,10 +329,9 @@ if submitted:
 
     # 步骤4.5: 推广我自己
     if promote_myself and config.LLM_API_KEY:
-        st.header("🌟 第4.5步：生成推广内容")
-        st.success("✅ 推广内容生成完成！以下是可用于发布的内容：")
+        st.header("🌟 第4.5步：生成推广文案（被动获客）")
+        st.caption("以下文案可直接复制到对应平台发布，让买家主动找到你。不会自动发布。")
 
-        # 这里调用 LLM 生成推广内容
         from tools.promote_generator import generate_promote_content
 
         promote_contents = generate_promote_content(
@@ -341,10 +346,14 @@ if submitted:
             language=language,
         )
 
+        st.success(f"✅ 已生成 {len(promote_contents)} 个渠道的推广文案，复制后直接发布即可！")
+
         for channel, content in promote_contents.items():
             with st.expander(f"📢 {channel}", expanded=True):
                 st.markdown(content)
-                st.button(f"📋 复制", key=f"copy_{channel}", on_click=lambda: None)
+                # 使用 st.code + 复制按钮让文案更易复制
+                st_copy = st.text_area(f"复制区域: {channel}", value=content.strip(), height=200, label_visibility="collapsed")
+
 
     progress.progress(1.0, text="全部完成！")
 
@@ -371,7 +380,7 @@ else:
     1. 输入产品名称，选择目标市场（支持自定义）
     2. 选择数据源（Web/商业目录/LinkedIn/社交媒体，默认全选）
     3. 填写发件人信息（可选）
-    4. 开启「推广我自己」可生成社媒/目录推广内容
+    4. 开启「生成推广文案」可生成社媒/目录推广内容（需手动复制发布）
     5. 点击「开始搜索」
     6. 下载Excel文件
 
