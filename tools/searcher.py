@@ -7,10 +7,7 @@ tools/searcher.py
 import time
 import logging
 from typing import List, Dict, Optional
-try:
-    from ddgs import DDGS
-except ImportError:
-    from duckduckgo_search import DDGS
+from ddgs import DDGS
 import config
 
 logger = logging.getLogger(__name__)
