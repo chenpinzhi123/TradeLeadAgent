@@ -186,6 +186,8 @@ def _is_relevant(result: Dict) -> bool:
 
     return True
 
+
+def deduplicate_leads(leads: List[Dict]) -> List[Dict]:
     """基于URL去重"""
     seen = set()
     unique = []
