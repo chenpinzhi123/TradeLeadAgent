@@ -19,6 +19,7 @@ import config
 from tools.searcher import (
     search_web, search_business_directories,
     search_linkedin, search_social_media,
+    search_customs_and_tradeshow,
     deduplicate_leads,
 )
 from tools.scraper import batch_scrape
@@ -115,7 +116,8 @@ with col2:
         index=0,
         key="buyer_type",
     )
-    max_results = st.slider("📊 搜索结果数量", 10, 50, 20, key="max_results")
+    max_results = st.slider("📊 搜索结果数量（每数据源）", 10, 200, 50, key="max_results",
+                                 help="数值越大搜索越全面，但耗时更长。建议50-100。")
 
     language = st.selectbox(
         "📧 开发信语言",
@@ -127,9 +129,9 @@ with col2:
 
     data_sources = st.multiselect(
         "📡 数据源（可多选）",
-        options=["Web搜索", "商业目录", "LinkedIn", "社交媒体"],
-        default=["Web搜索", "商业目录", "LinkedIn", "社交媒体"],
-        help="LinkedIn/社交媒体需要网络访问，可能增加搜索时间",
+        options=["Web搜索", "商业目录", "海关数据/展会", "LinkedIn", "社交媒体"],
+        default=["Web搜索", "商业目录", "海关数据/展会"],
+        help="海关数据/展会：高意向客户来源，推荐开启。LinkedIn/社交媒体需要网络访问。",
         key="data_sources",
     )
 
@@ -207,36 +209,46 @@ if submitted:
     all_leads = []
     step_weight = 0.0
     total_sources = len(data_sources)
+    # 各数据源进度权重（合计 0.45）
+    source_weight = 0.45 / max(total_sources, 1)
 
-    # Web 搜索
+    # Web 搜索（最全面，给足预算）
     if "Web搜索" in data_sources:
-        with st.spinner("正在从Web搜索潜在客户..."):
+        with st.spinner("🌐 正在从Web搜索潜在客户..."):
             web_results = search_web(product, target_market, max_results, buyer_type)
-            step_weight += 0.2
+            step_weight += source_weight
             progress.progress(min(step_weight, 0.45), text=f"Web搜索完成，找到 {len(web_results)} 条")
             all_leads.extend(web_results)
 
-    # 商业目录搜索
+    # 商业目录搜索（高质量B2B）
     if "商业目录" in data_sources:
-        with st.spinner("正在搜索商业目录..."):
-            dir_results = search_business_directories(product, target_market, max_results // 2)
-            step_weight += 0.15
+        with st.spinner("📚 正在搜索商业目录（Kompass/Europages/ThomasNet）..."):
+            dir_results = search_business_directories(product, target_market, max_results)
+            step_weight += source_weight
             progress.progress(min(step_weight, 0.45), text=f"目录搜索完成，找到 {len(dir_results)} 条")
             all_leads.extend(dir_results)
 
+    # 海关数据/展会（高意向！）
+    if "海关数据/展会" in data_sources:
+        with st.spinner("📦 正在搜索海关数据/展会 exhibitor 名单..."):
+            customs_results = search_customs_and_tradeshow(product, target_market, max_results)
+            step_weight += source_weight
+            progress.progress(min(step_weight, 0.45), text=f"海关数据/展会搜索完成，找到 {len(customs_results)} 条")
+            all_leads.extend(customs_results)
+
     # LinkedIn 搜索
     if "LinkedIn" in data_sources:
-        with st.spinner("正在搜索 LinkedIn..."):
-            linkedin_results = search_linkedin(product, target_market, max_results // 3)
-            step_weight += 0.10
+        with st.spinner("💼 正在搜索 LinkedIn 联系人..."):
+            linkedin_results = search_linkedin(product, target_market, max(10, max_results // 2))
+            step_weight += source_weight
             progress.progress(min(step_weight, 0.45), text=f"LinkedIn搜索完成，找到 {len(linkedin_results)} 条")
             all_leads.extend(linkedin_results)
 
     # 社交媒体搜索
     if "社交媒体" in data_sources:
-        with st.spinner("正在搜索社交媒体（Facebook/Instagram）..."):
-            social_results = search_social_media(product, target_market, max_results // 3)
-            step_weight += 0.10
+        with st.spinner("📱 正在搜索社交媒体（Facebook/Instagram）..."):
+            social_results = search_social_media(product, target_market, max(10, max_results // 2))
+            step_weight += source_weight
             progress.progress(min(step_weight, 0.45), text=f"社交媒体搜索完成，找到 {len(social_results)} 条")
             all_leads.extend(social_results)
 
