@@ -91,7 +91,7 @@ def _build_search_queries(
     构建多维度搜索query，覆盖不同搜索意图。
     新增：海关数据、展会exhibitor、行业协会、B2B目录等来源。
     """
-    market_suffix = getattr(config, "MARKET_KEY_WORDS", {}).get(target_market, target_market)
+    market_suffix = getattr(config, "MARKET_KEY_WORDS", None) or getattr(config, "MARKET_KEYWORDS", {}).get(target_market, target_market)
 
     queries = [
         # 核心：直接找进口商/分销商
@@ -128,7 +128,7 @@ def _build_search_queries(
 
 def _build_directory_queries(product: str, target_market: str) -> List[str]:
     """构建商业目录搜索 query"""
-    market_suffix = getattr(config, "MARKET_KEY_WORDS", {}).get(target_market, target_market)
+    market_suffix = getattr(config, "MARKET_KEY_WORDS", None) or getattr(config, "MARKET_KEYWORDS", {}).get(target_market, target_market)
     return [
         f'site:kompass.com "{product}" {market_suffix}',
         f'site:europages.com "{product}" {market_suffix}',
@@ -140,7 +140,7 @@ def _build_directory_queries(product: str, target_market: str) -> List[str]:
 
 def _build_customs_queries(product: str, target_market: str) -> List[str]:
     """构建海关数据/贸易数据搜索 query"""
-    market_suffix = getattr(config, "MARKET_KEY_WORDS", {}).get(target_market, target_market)
+    market_suffix = getattr(config, "MARKET_KEY_WORDS", None) or getattr(config, "MARKET_KEYWORDS", {}).get(target_market, target_market)
     return [
         f'"{product}" {market_suffix} "bill of lading" "importer"',
         f'"{product}" {market_suffix} customs import data "buyer"',
@@ -152,7 +152,7 @@ def _build_customs_queries(product: str, target_market: str) -> List[str]:
 
 def _build_tradeshow_queries(product: str, target_market: str) -> List[str]:
     """构建展会 exhibitor 搜索 query"""
-    market_suffix = getattr(config, "MARKET_KEY_WORDS", {}).get(target_market, target_market)
+    market_suffix = getattr(config, "MARKET_KEY_WORDS", None) or getattr(config, "MARKET_KEYWORDS", {}).get(target_market, target_market)
     return [
         f'{product} {market_suffix} "trade show" exhibitor "contact"',
         f'{product} {market_suffix} "exhibition" exhibitor list',
@@ -391,7 +391,7 @@ def search_linkedin(
     - 搜索公司官网上标注的 LinkedIn 联系人
     - 搜索 "LinkedIn" + 职位 + 产品 + 市场
     """
-    market_suffix = getattr(config, "MARKET_KEY_WORDS", {}).get(target_market, target_market)
+    market_suffix = getattr(config, "MARKET_KEY_WORDS", None) or getattr(config, "MARKET_KEYWORDS", {}).get(target_market, target_market)
     queries = [
         f'"{product}" {market_suffix} procurement manager linkedin',
         f'"{product}" {market_suffix} importer linkedin "contact"',
@@ -413,7 +413,7 @@ def search_social_media(
     - 搜索 "facebook page" + 产品 + 市场
     - 搜索 "instagram" + 产品 + 市场 + importer/distributor
     """
-    market_suffix = getattr(config, "MARKET_KEY_WORDS", {}).get(target_market, target_market)
+    market_suffix = getattr(config, "MARKET_KEY_WORDS", None) or getattr(config, "MARKET_KEYWORDS", {}).get(target_market, target_market)
     queries = [
         f'"{product}" {market_suffix} "facebook page" importer OR distributor',
         f'"{product}" {market_suffix} instagram importer distributor',

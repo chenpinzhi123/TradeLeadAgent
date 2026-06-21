@@ -76,6 +76,9 @@ MARKET_KEYWORDS = {
     "非洲": "Africa Nigeria South Africa Egypt Kenya",
 }
 
+# 别名（兼容旧版 searcher.py 中 MARKET_KEY_WORDS 的拼写）
+MARKET_KEY_WORDS = MARKET_KEYWORDS
+
 # 进口商类型关键词（用于搜索过滤）
 BUYER_KEYWORDS = [
     "importer", "distributor", "wholesaler", "buyer", "procurement",
