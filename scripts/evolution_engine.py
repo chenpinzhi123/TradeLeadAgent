@@ -372,6 +372,10 @@ def main(report_path: Optional[str] = None):
     Args:
         report_path: 质量报告JSON路径，None则使用默认路径
     """
+    # Windows GBK console fix
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -398,21 +402,21 @@ def main(report_path: Optional[str] = None):
     
     # 输出结果
     print("\n" + "=" * 70)
-    print("🧬 进化结果报告")
+    print("[EVOLUTION] Evolution Result Report")
     print("=" * 70)
-    print(f"应用策略数: {len(result['applied'])}")
-    print(f"跳过策略数: {len(result['skipped'])}")
-    print(f"语法验证: {'通过' if result['syntax_verified'] else '失败'}")
+    print(f"Applied strategies: {len(result['applied'])}")
+    print(f"Skipped strategies: {len(result['skipped'])}")
+    print(f"Syntax verified: {'PASS' if result['syntax_verified'] else 'FAIL'}")
     
     if result["applied"]:
-        print(f"\n已应用的改进:")
+        print(f"\nApplied improvements:")
         for s in result["applied"]:
-            print(f"  ✅ {s['strategy']}: {s['changes']}")
+            print(f"  [OK] {s['strategy']}: {s['changes']}")
     
     if result["skipped"]:
-        print(f"\n跳过的策略:")
+        print(f"\nSkipped strategies:")
         for s in result["skipped"]:
-            print(f"  ⏭️ {s['name']}: {s['reason']}")
+            print(f"  [SKIP] {s['name']}: {s['reason']}")
     
     # 保存进化报告
     evolution_path = os.path.join(
@@ -421,7 +425,7 @@ def main(report_path: Optional[str] = None):
     )
     with open(evolution_path, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
-    print(f"\n💾 进化报告已保存: {evolution_path}")
+    print(f"\n[SAVED] Evolution report saved: {evolution_path}")
     
     return result
 

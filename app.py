@@ -286,9 +286,13 @@ if submitted:
     if with_contact:
         with st.expander("📧 有联系方式的线索", expanded=True):
             contact_data = [{
-                "公司": l["title"],
+                "公司": l.get("company_name", "") or l["title"],
+                "网址": l["url"],
                 "邮箱": "; ".join(l.get("emails", [])),
                 "电话": "; ".join(l.get("phones", [])),
+                "地址": l.get("address", ""),
+                "行业": l.get("industry", ""),
+                "社媒": ", ".join(f"{k}: {v}" for k, v in l.get("social", {}).items()),
             } for l in with_contact[:20]]
             st.dataframe(contact_data, use_container_width=True)
 
@@ -302,17 +306,41 @@ if submitted:
 
     st.success("✅ 评分完成！")
 
-    # 展示评分结果
-    df = pd.DataFrame([{
-        "优先级": "🔴" + l.get("priority", "") if l.get("priority") == "高" else ("🟡" + l.get("priority", "") if l.get("priority") == "中" else "🟢" + l.get("priority", "")),
-        "评分": l.get("total_score", 0),
-        "公司名称": l["title"],
-        "邮箱": "; ".join(l.get("emails", [])),
-        "电话": "; ".join(l.get("phones", [])),
-        "推荐理由": l.get("reason", ""),
-    } for l in scored_leads])
+    # 展示高质量线索筛选
+    high_quality = [l for l in scored_leads if l.get("priority") == "高" and (l.get("emails") or l.get("phones"))]
+    if high_quality:
+        st.subheader(f"🔥 高质量线索（共 {len(high_quality)} 条）")
+        st.caption("以下线索有联系方式且评分较高，建议优先联系")
+        hq_df = pd.DataFrame([{
+            "优先级": "🔴 高",
+            "评分": l.get("total_score", 0),
+            "公司": l.get("company_name", "") or l["title"],
+            "网址": l["url"],
+            "邮箱": "; ".join(l.get("emails", [])),
+            "电话": "; ".join(l.get("phones", [])),
+            "地址": l.get("address", ""),
+            "行业": l.get("industry", ""),
+            "推荐理由": l.get("reason", ""),
+        } for l in high_quality[:10]])
+        st.dataframe(hq_df, use_container_width=True, hide_index=True)
 
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    # 展示全部评分结果
+    with st.expander("📊 全部评分结果", expanded=True):
+        df = pd.DataFrame([{
+            "优先级": "🔴" + l.get("priority", "") if l.get("priority") == "高" else ("🟡" + l.get("priority", "") if l.get("priority") == "中" else "🟢" + l.get("priority", "")),
+            "评分": l.get("total_score", 0),
+            "公司": l.get("company_name", "") or l["title"],
+            "网址": l["url"],
+            "邮箱": "; ".join(l.get("emails", [])),
+            "电话": "; ".join(l.get("phones", [])),
+            "地址": l.get("address", ""),
+            "行业": l.get("industry", ""),
+            "社媒": ", ".join(f"{k}: {v}" for k, v in l.get("social", {}).items()),
+            "推荐理由": l.get("reason", ""),
+        } for l in scored_leads])
+
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.caption(f"共 {len(scored_leads)} 条结果，按评分从高到低排序")
 
     progress.progress(0.95, text="生成开发信...")
 

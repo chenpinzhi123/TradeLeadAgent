@@ -452,6 +452,10 @@ QualityScore._calculate_total = _calculate_total
 
 def main():
     """独立运行评估"""
+    # Windows GBK console fix
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -464,7 +468,7 @@ def main():
     
     # 输出报告
     print("\n" + "="*70)
-    print("📊 TradeLeadAgent 质量评估报告")
+    print("[REPORT] TradeLeadAgent Quality Evaluation Report")
     print("="*70)
     
     summary = report["summary"]
@@ -478,15 +482,15 @@ def main():
     print(f"通过率(>=60): {summary['pass_rate']:.0f}%")
     
     if report["issues"]:
-        print(f"\n⚠️ 发现的问题:")
+        print("\n[ISSUES] Found problems:")
         for issue in report["issues"][:10]:
             print(f"  - {issue}")
     
     if report["priority_fixes"]:
-        print(f"\n🔧 优先修复建议:")
+        print("\n[FIXES] Priority recommendations:")
         for fix in report["priority_fixes"]:
             print(f"  [{fix['priority']}] {fix['target']}: {fix['problem']}")
-            print(f"    → {fix['solution']}")
+            print(f"    -> {fix['solution']}")
     
     # 保存报告
     report_path = os.path.join(
@@ -496,7 +500,7 @@ def main():
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
-    print(f"\n💾 报告已保存: {report_path}")
+    print(f"\n[SAVED] Report saved: {report_path}")
     
     return report
 

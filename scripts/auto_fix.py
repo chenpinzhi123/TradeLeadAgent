@@ -217,8 +217,8 @@ if __name__ == "__main__":
     print(json.dumps(report, indent=2, ensure_ascii=False))
 
     if report["has_changes"]:
-        print(f"\n🔧 自动修复了 {report['fixed']} 个问题")
+        print(f"\n[FIX] Auto-fixed {report['fixed']} issues")
         sys.exit(0)  # 修复成功，退出码 0
     else:
-        print("\n✅ 无需修复")
+        print("\n[OK] No fixes needed")
         sys.exit(0)

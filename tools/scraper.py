@@ -16,6 +16,22 @@ import config
 
 logger = logging.getLogger(__name__)
 
+# 请求头（必须定义，之前缺失导致 _fetch_page NameError）
+try:
+    ua = UserAgent()
+    _DEFAULT_UA = ua.random
+except Exception:
+    _DEFAULT_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+HEADERS = {
+    "User-Agent": _DEFAULT_UA,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9,de;q=0.8,fr;q=0.7,es;q=0.6",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Cache-Control": "no-cache",
+}
+
 # 邮箱正则（标准格式）
 EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
 # 电话正则（更严格：支持国际格式，至少8位有效数字）
@@ -29,11 +45,89 @@ PHONE_RE_LOOSE = re.compile(
     r"(?:\+?\d{1,3}[\s.-]?)?\d{7,15}"
 )
 
-HEADERS = {
-    "User-Agent": UserAgent().random,
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
+
+# 常见免费邮箱域名（非公司域名）
+FREE_EMAIL_DOMAINS = {
+    "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com",
+    "yandex.com", "yandex.ru", "mail.ru", "qq.com", "163.com", "126.com",
+    "sina.com", "sohu.com", "foxmail.com", "icloud.com", "me.com",
+    "protonmail.com", "zoho.com", "aol.com", "msn.com", "ymail.com",
 }
+
+# 目标市场常见电话区号（用于验证电话号码归属）
+MARKET_PHONE_PREFIXES = {
+    "美国": ["+1", "1"],
+    "欧盟": ["+32", "+33", "+34", "+39", "+31", "+49", "+43", "+41", "+44"],
+    "德国": ["+49", "49"],
+    "英国": ["+44", "44"],
+    "法国": ["+33", "33"],
+    "意大利": ["+39", "39"],
+    "西班牙": ["+34", "34"],
+    "加拿大": ["+1", "1"],
+    "澳大利亚": ["+61", "61"],
+    "日本": ["+81", "81"],
+    "韩国": ["+82", "82"],
+    "印度": ["+91", "91"],
+    "俄罗斯": ["+7", "7"],
+    "土耳其": ["+90", "90"],
+    "波兰": ["+48", "48"],
+    "墨西哥": ["+52", "52"],
+    "巴西": ["+55", "55"],
+    "东南亚": ["+65", "+66", "+60", "+84", "+62", "+63"],
+    "中东": ["+971", "+966", "+965", "+974", "+968"],
+    "南非": ["+27", "27"],
+}
+
+
+def _validate_email_quality(email: str, base_domain: str = "") -> Dict[str, any]:
+    """
+    验证邮箱质量，返回质量评级和类型。
+    返回: {"is_valid": bool, "quality": "high"|"medium"|"low", "type": "company"|"free"|"generic"}
+    """
+    email = email.lower().strip()
+    parts = email.split("@")
+    if len(parts) != 2:
+        return {"is_valid": False, "quality": "low", "type": "invalid"}
+    
+    domain = parts[1]
+    
+    # 检查是否免费邮箱
+    if domain in FREE_EMAIL_DOMAINS:
+        return {"is_valid": True, "quality": "medium", "type": "free"}
+    
+    # 检查是否公司域名邮箱（与网站域名匹配）
+    if base_domain and base_domain in domain:
+        return {"is_valid": True, "quality": "high", "type": "company"}
+    
+    # 其他域名（可能是公司域名）
+    if domain.endswith(".com") or domain.endswith(".de") or domain.endswith(".fr") or domain.endswith(".uk") or domain.endswith(".co") or domain.endswith(".net") or domain.endswith(".org"):
+        return {"is_valid": True, "quality": "high", "type": "company"}
+    
+    return {"is_valid": True, "quality": "medium", "type": "generic"}
+
+
+def _validate_phone_market(phone: str, target_market: str) -> Dict[str, any]:
+    """
+    验证电话号码是否可能属于目标市场。
+    返回: {"is_valid": bool, "likely_market": str, "normalized": str}
+    """
+    normalized = re.sub(r"[^\d+]", "", phone)
+    
+    # 基础长度检查
+    if len(normalized) < 7 or len(normalized) > 15:
+        return {"is_valid": False, "likely_market": "", "normalized": normalized}
+    
+    # 检查区号匹配
+    expected_prefixes = MARKET_PHONE_PREFIXES.get(target_market, [])
+    matches = any(normalized.startswith(prefix) or normalized.startswith(prefix.lstrip("+")) for prefix in expected_prefixes)
+    
+    if matches:
+        return {"is_valid": True, "likely_market": target_market, "normalized": normalized}
+    
+    # 如果没有匹配到目标市场区号，也可能是有效的（比如本地号码不带区号）
+    return {"is_valid": True, "likely_market": "", "normalized": normalized}
+
+
 
 
 def _fetch_page(url: str, timeout: int = 10) -> Optional[str]:
@@ -41,9 +135,12 @@ def _fetch_page(url: str, timeout: int = 10) -> Optional[str]:
     try:
         resp = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
         resp.raise_for_status()
-        # 只处理 HTML
-        if "text/html" not in resp.headers.get("content-type", ""):
-            return None
+        # 只处理 HTML（宽松检查：某些网站 content-type 不标准）
+        ct = resp.headers.get("content-type", "").lower()
+        if ct and "text/html" not in ct and "application/xhtml" not in ct:
+            # 但如果内容看起来是 HTML，仍然处理
+            if "<html" not in resp.text[:500].lower() and "<!doctype html" not in resp.text[:500].lower():
+                return None
         return resp.text
     except Exception as e:
         logger.debug(f"抓取失败 [{url}]: {e}")
@@ -65,7 +162,7 @@ def _extract_emails(text: str) -> List[str]:
         "support@",  # 客服邮箱，非采购联系人
     ]
     # 优先联系类关键词
-    priority_patterns = ["info@", "contact@", "sales@", "hello@", "enquiry@", "inquiry@", "buy@", "procure@"]
+    priority_patterns = ["info@", "contact@", "sales@", "hello@", "enquiry@", "inquiry@", "buy@", "procure@", "export@", "business@", "marketing@", "ceo@", "director@", "manager@"]
 
     filtered = []
     priority = []
@@ -149,24 +246,89 @@ def _format_phone(raw: str) -> str:
     return digits
 
 
-def _extract_company_description(soup: BeautifulSoup) -> str:
-    """尝试提取公司简介（从 About 页面或 meta description）"""
-    # 先试 meta description
-    meta = soup.find("meta", attrs={"name": "description"})
-    if meta and meta.get("content"):
-        desc = meta["content"].strip()
-        if len(desc) > 20:
-            return desc[:300]
+def _extract_company_info(soup: BeautifulSoup, base_url: str) -> Dict:
+    """提取公司信息：名称、地址、简介、行业等"""
+    info = {
+        "company_name": "",
+        "address": "",
+        "industry": "",
+        "description": "",
+    }
+    
+    # 公司名：尝试从 title、logo alt、schema.org 中提取
+    title = soup.find("title")
+    if title:
+        info["company_name"] = title.get_text(strip=True).split("|")[0].split("-")[0].strip()[:100]
+    
+    # 地址：寻找包含 "address", "location", "headquarters" 的元素
+    for tag in soup.find_all(["div", "p", "span"]):
+        text = tag.get_text(strip=True, separator=" ")
+        if any(kw in text.lower() for kw in ["address", "headquarters", "location", "office"]):
+            if len(text) > 20 and len(text) < 200:
+                info["address"] = text
+                break
+    
+    # 行业
+    for tag in soup.find_all(["div", "p", "span"]):
+        text = tag.get_text(strip=True, separator=" ")
+        if any(kw in text.lower() for kw in ["industry", "sector", "business type"]):
+            if len(text) > 10 and len(text) < 100:
+                info["industry"] = text
+                break
+    
+    return info
 
-    # 试 about 页面链接
-    about_link = soup.find("a", string=re.compile(r"about|关于", re.I))
-    #  fallback: 取第一段有意义的文字
-    for tag in soup.find_all(["p", "div"], limit=20):
-        text = tag.get_text(strip=True)
-        if len(text) > 50 and len(text) < 500:
-            return text[:300]
 
-    return ""
+def _find_priority_pages(soup: BeautifulSoup, base_url: str) -> List[str]:
+    """
+    从首页HTML中找出优先级高的内页链接。
+    优先级：Contact > About > Team > Products > Services > Locations
+    返回绝对URL列表。
+    """
+    links = []
+    seen = set()
+    
+    priority_patterns = [
+        # (关键词正则, 权重)
+        (r"contact|contact us|get in touch|reach us|inquiry|enquiry|quote", 10),
+        (r"about|about us|company|our company|who we are|overview", 8),
+        (r"team|our team|management|leadership|directors|executives", 7),
+        (r"product|products|our products|catalog|catalogue|range", 6),
+        (r"service|services|solutions|offering|what we do", 5),
+        (r"location|locations|offices|headquarters|address|find us", 4),
+        (r"partner|partners|distributor|distribution|dealer|reseller", 3),
+    ]
+    
+    for a in soup.find_all("a", href=True):
+        href = a.get("href", "")
+        text = a.get_text(strip=True, separator=" ")
+        if not href or href.startswith("#") or href.startswith("javascript"):
+            continue
+        
+        # 构建绝对URL
+        full_url = href if href.startswith("http") else base_url.rstrip("/") + "/" + href.lstrip("/")
+        
+        # 避免重复和外部链接
+        if full_url in seen:
+            continue
+        domain = base_url.split("/")[2] if "/" in base_url else base_url
+        if domain not in full_url:
+            continue
+        seen.add(full_url)
+        
+        # 计算权重
+        weight = 0
+        combined = f"{text} {href}".lower()
+        for pattern, w in priority_patterns:
+            if re.search(pattern, combined, re.I):
+                weight = max(weight, w)
+        
+        if weight > 0:
+            links.append((weight, full_url))
+    
+    # 按权重排序，高权重在前
+    links.sort(key=lambda x: x[0], reverse=True)
+    return [url for _, url in links]
 
 
 def _extract_social_links(soup: BeautifulSoup, base_url: str) -> Dict[str, str]:
@@ -207,46 +369,69 @@ def scrape_lead(lead: Dict) -> Dict:
         emails = _extract_emails(html)
         phones = _extract_phones(html)
 
-        # 提取公司描述
-        description = _extract_company_description(soup)
+        # 提取公司信息
+        company_info = _extract_company_info(soup, url)
 
         # 提取社交媒体
         social = _extract_social_links(soup, url)
 
+        # 验证邮箱质量
+        base_domain = url.split("/")[2] if "/" in url else ""
+        validated_emails = []
+        email_quality = ""
+        for e in emails:
+            v = _validate_email_quality(e, base_domain)
+            if v["is_valid"]:
+                validated_emails.append(e)
+                if v["quality"] == "high":
+                    email_quality = "high"
+                elif v["quality"] == "medium" and email_quality != "high":
+                    email_quality = "medium"
+        
+        # 验证电话（目标市场匹配）
+        validated_phones = []
+        phone_match_market = False
+        for p in phones:
+            pv = _validate_phone_market(p, target_market="")
+            if pv["is_valid"]:
+                validated_phones.append(p)
+        
         # 更新 lead
         lead.update({
-            "emails": emails,
-            "phones": phones,
-            "description": description,
+            "emails": validated_emails,
+            "phones": validated_phones,
+            "email_quality": email_quality,
+            "description": company_info.get("description", ""),
+            "company_name": company_info.get("company_name", ""),
+            "address": company_info.get("address", ""),
+            "industry": company_info.get("industry", ""),
             "social": social,
             "scraped": True,
         })
 
-        # 如果首页没找到邮箱，尝试 About / Contact 页面
-        if not emails:
-            about_links = []
-            for a in soup.find_all("a", href=True):
-                href = a.get("href", "")
-                text = a.get_text(strip=True, separator=" ")
-                if re.search(r"about|contact|联系|关于", text, re.I) and href:
-                    full_url = href if href.startswith("http") else url.rstrip("/") + "/" + href.lstrip("/")
-                    if full_url not in about_links:
-                        about_links.append(full_url)
-                elif re.search(r"about|contact", href, re.I) and href:
-                    full_url = href if href.startswith("http") else url.rstrip("/") + "/" + href.lstrip("/")
-                    if full_url not in about_links:
-                        about_links.append(full_url)
-
-            for link in about_links[:3]:  # 最多试3个
-                about_html = _fetch_page(link, config.SCRAPE_TIMEOUT)
-                if about_html:
-                    new_emails = _extract_emails(about_html)
-                    if new_emails:
-                        lead["emails"] = new_emails
+        # 如果首页没找到邮箱，尝试更多页面（About/Contact/Team/Products/Partners）
+        if not validated_emails:
+            priority_links = _find_priority_pages(soup, url)
+            for link in priority_links[:5]:  # 最多试5个（扩展）
+                page_html = _fetch_page(link, config.SCRAPE_TIMEOUT)
+                if page_html:
+                    new_emails = _extract_emails(page_html)
+                    # 验证新邮箱
+                    new_validated = []
+                    for e in new_emails:
+                        v = _validate_email_quality(e, base_domain)
+                        if v["is_valid"]:
+                            new_validated.append(e)
+                            if v["quality"] == "high":
+                                email_quality = "high"
+                    if new_validated:
+                        lead["emails"] = new_validated
+                        lead["email_quality"] = email_quality
                         # 也从 contact 页面抓电话
-                        new_phones = _extract_phones(about_html)
-                        if new_phones:
-                            lead["phones"] = new_phones
+                        new_phones = _extract_phones(page_html)
+                        new_validated_phones = [p for p in new_phones if _validate_phone_market(p, "").get("is_valid")]
+                        if new_validated_phones:
+                            lead["phones"] = new_validated_phones
                         break
                     time.sleep(1)
 

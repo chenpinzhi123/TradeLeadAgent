@@ -253,8 +253,8 @@ if __name__ == "__main__":
     print(json.dumps(results, indent=2, ensure_ascii=False))
 
     if results["summary"]["has_errors"]:
-        print(f"\n❌ 发现 {results['summary']['total_errors']} 个问题")
+        print(f"\n[FAIL] Found {results['summary']['total_errors']} issues")
         sys.exit(1)
     else:
-        print("\n✅ 所有检查通过")
+        print("\n[PASS] All checks passed")
         sys.exit(0)
