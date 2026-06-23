@@ -373,11 +373,10 @@ def _evaluate_scrape_quality(self, scraped: List[Dict]):
     with_phone = sum(1 for l in scraped if l.get("phones"))
     self.phone_quality = round(with_phone / total * 100, 1)
     
-    # 抓取质量总分
-    self.scrape_quality = round(
-        (self.scrape_success_rate * 0.3 + self.contact_rate * 0.4 + 
-         self.email_quality * 0.15 + self.phone_quality * 0.15), 2
-    )
+    # 抓取质量总分 (子项是0-100百分比，需缩放到0-25上限)
+    raw_scrape = (self.scrape_success_rate * 0.3 + self.contact_rate * 0.4 +
+                  self.email_quality * 0.15 + self.phone_quality * 0.15)
+    self.scrape_quality = round(raw_scrape / 4, 2)  # 100→25 缩放
     
     if self.contact_rate < 30:
         self.suggestions.append(f"联系方式提取率仅{self.contact_rate}%，建议优化抓取策略")
@@ -433,10 +432,10 @@ def _evaluate_usability(self, scored: List[Dict]):
 
 
 def _calculate_total(self):
-    """计算总分"""
+    """计算总分（上限100）"""
     self.total_score = round(
-        self.search_quality + self.scrape_quality + 
-        self.scoring_quality + self.overall_usability, 2
+        min(100, self.search_quality + self.scrape_quality +
+             self.scoring_quality + self.overall_usability), 2
     )
 
 

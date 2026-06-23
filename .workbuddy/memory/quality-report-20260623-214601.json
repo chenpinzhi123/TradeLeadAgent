@@ -1,0 +1,286 @@
+{
+  "summary": {
+    "test_cases_run": 8,
+    "avg_total_score": 99.67,
+    "avg_search_quality": 16.93,
+    "avg_scrape_quality": 49.41,
+    "avg_scoring_quality": 18.75,
+    "avg_usability": 14.58,
+    "min_score": 3.33,
+    "max_score": 157.14,
+    "pass_rate": 75.0
+  },
+  "per_test_case": [
+    {
+      "test_case_id": 0,
+      "product": "LED显示屏",
+      "target_market": "美国",
+      "result_count": 120,
+      "result_count_score": 25,
+      "diversity_score": 12.5,
+      "relevance_score": 20.0,
+      "search_quality": 19.17,
+      "scrape_success_rate": 90.0,
+      "contact_rate": 60.0,
+      "email_quality": 50.0,
+      "phone_quality": 60.0,
+      "scrape_quality": 67.5,
+      "score_distribution": {
+        "高": 5,
+        "中": 3,
+        "低": 2
+      },
+      "score_reasonableness": 25,
+      "top_lead_quality": 25.0,
+      "scoring_quality": 25.0,
+      "actionable_leads": 3,
+      "overall_usability": 25,
+      "total_score": 136.67,
+      "issues": [],
+      "suggestions": []
+    },
+    {
+      "test_case_id": 1,
+      "product": "不锈钢紧固件",
+      "target_market": "德国",
+      "result_count": 67,
+      "result_count_score": 25,
+      "diversity_score": 6.25,
+      "relevance_score": 25,
+      "search_quality": 18.75,
+      "scrape_success_rate": 90.0,
+      "contact_rate": 90.0,
+      "email_quality": 9.1,
+      "phone_quality": 90.0,
+      "scrape_quality": 77.86,
+      "score_distribution": {
+        "高": 7,
+        "中": 1,
+        "低": 2
+      },
+      "score_reasonableness": 25,
+      "top_lead_quality": 25.0,
+      "scoring_quality": 25.0,
+      "actionable_leads": 7,
+      "overall_usability": 25,
+      "total_score": 146.61,
+      "issues": [],
+      "suggestions": [
+        "来源单一，建议启用更多数据源"
+      ]
+    },
+    {
+      "test_case_id": 2,
+      "product": "光伏组件",
+      "target_market": "欧盟",
+      "result_count": 35,
+      "result_count_score": 25,
+      "diversity_score": 6.25,
+      "relevance_score": 20.0,
+      "search_quality": 17.08,
+      "scrape_success_rate": 40.0,
+      "contact_rate": 30.0,
+      "email_quality": 0,
+      "phone_quality": 30.0,
+      "scrape_quality": 28.5,
+      "score_distribution": {
+        "高": 2,
+        "中": 5,
+        "低": 3
+      },
+      "score_reasonableness": 25,
+      "top_lead_quality": 16.67,
+      "scoring_quality": 20.84,
+      "actionable_leads": 0,
+      "overall_usability": 0.0,
+      "total_score": 66.42,
+      "issues": [],
+      "suggestions": [
+        "来源单一，建议启用更多数据源",
+        "抓取成功率仅40.0%，建议增加重试机制",
+        "可行动线索仅0条，建议提升联系方式提取率"
+      ]
+    },
+    {
+      "test_case_id": 3,
+      "product": "瑜伽垫",
+      "target_market": "东南亚",
+      "result_count": 64,
+      "result_count_score": 25,
+      "diversity_score": 18.75,
+      "relevance_score": 5.0,
+      "search_quality": 16.25,
+      "scrape_success_rate": 30.0,
+      "contact_rate": 30.0,
+      "email_quality": 0.0,
+      "phone_quality": 30.0,
+      "scrape_quality": 25.5,
+      "score_distribution": {
+        "高": 0,
+        "中": 0,
+        "低": 10
+      },
+      "score_reasonableness": 8.333333333333332,
+      "top_lead_quality": 8.33,
+      "scoring_quality": 8.33,
+      "actionable_leads": 1,
+      "overall_usability": 8.333333333333332,
+      "total_score": 58.41,
+      "issues": [],
+      "suggestions": [
+        "抓取成功率仅30.0%，建议增加重试机制",
+        "评分分布过于集中，建议优化评分逻辑",
+        "可行动线索仅1条，建议提升联系方式提取率"
+      ]
+    },
+    {
+      "test_case_id": 4,
+      "product": "电动工具",
+      "target_market": "巴西",
+      "result_count": 107,
+      "result_count_score": 25,
+      "diversity_score": 18.75,
+      "relevance_score": 25,
+      "search_quality": 22.92,
+      "scrape_success_rate": 90.0,
+      "contact_rate": 80.0,
+      "email_quality": 16.7,
+      "phone_quality": 80.0,
+      "scrape_quality": 73.5,
+      "score_distribution": {
+        "高": 1,
+        "中": 5,
+        "低": 4
+      },
+      "score_reasonableness": 25,
+      "top_lead_quality": 25.0,
+      "scoring_quality": 25.0,
+      "actionable_leads": 3,
+      "overall_usability": 25,
+      "total_score": 146.42,
+      "issues": [],
+      "suggestions": []
+    },
+    {
+      "test_case_id": 5,
+      "product": "医疗器械",
+      "target_market": "中东",
+      "result_count": 56,
+      "result_count_score": 25,
+      "diversity_score": 6.25,
+      "relevance_score": 25,
+      "search_quality": 18.75,
+      "scrape_success_rate": 90.0,
+      "contact_rate": 90.0,
+      "email_quality": 79.3,
+      "phone_quality": 90.0,
+      "scrape_quality": 88.39,
+      "score_distribution": {
+        "高": 6,
+        "中": 3,
+        "低": 1
+      },
+      "score_reasonableness": 25,
+      "top_lead_quality": 25.0,
+      "scoring_quality": 25.0,
+      "actionable_leads": 7,
+      "overall_usability": 25,
+      "total_score": 157.14,
+      "issues": [],
+      "suggestions": [
+        "来源单一，建议启用更多数据源"
+      ]
+    },
+    {
+      "test_case_id": 6,
+      "product": "智能家居",
+      "target_market": "日本",
+      "result_count": 56,
+      "result_count_score": 25,
+      "diversity_score": 12.5,
+      "relevance_score": 20.0,
+      "search_quality": 19.17,
+      "scrape_success_rate": 40.0,
+      "contact_rate": 40.0,
+      "email_quality": 0.0,
+      "phone_quality": 40.0,
+      "scrape_quality": 34.0,
+      "score_distribution": {
+        "高": 0,
+        "中": 4,
+        "低": 6
+      },
+      "score_reasonableness": 16.666666666666664,
+      "top_lead_quality": 25.0,
+      "scoring_quality": 20.83,
+      "actionable_leads": 1,
+      "overall_usability": 8.333333333333332,
+      "total_score": 82.33,
+      "issues": [],
+      "suggestions": [
+        "抓取成功率仅40.0%，建议增加重试机制",
+        "可行动线索仅1条，建议提升联系方式提取率"
+      ]
+    },
+    {
+      "test_case_id": 7,
+      "product": "服装",
+      "target_market": "墨西哥",
+      "result_count": 0,
+      "result_count_score": 0.0,
+      "diversity_score": 0.0,
+      "relevance_score": 10,
+      "search_quality": 3.33,
+      "scrape_success_rate": 0.0,
+      "contact_rate": 0.0,
+      "email_quality": 0.0,
+      "phone_quality": 0.0,
+      "scrape_quality": 0.0,
+      "score_distribution": {},
+      "score_reasonableness": 0.0,
+      "top_lead_quality": 0.0,
+      "scoring_quality": 0.0,
+      "actionable_leads": 0,
+      "overall_usability": 0.0,
+      "total_score": 3.33,
+      "issues": [
+        "搜索结果为空"
+      ],
+      "suggestions": [
+        "搜索结果仅0条，建议增加query数量或放宽过滤",
+        "来源单一，建议启用更多数据源",
+        "检查搜索query构建逻辑，增加多语言query"
+      ]
+    }
+  ],
+  "issues": [
+    "搜索结果为空"
+  ],
+  "suggestions": [
+    "来源单一，建议启用更多数据源",
+    "抓取成功率仅40.0%，建议增加重试机制",
+    "可行动线索仅0条，建议提升联系方式提取率",
+    "抓取成功率仅30.0%，建议增加重试机制",
+    "评分分布过于集中，建议优化评分逻辑",
+    "可行动线索仅1条，建议提升联系方式提取率",
+    "搜索结果仅0条，建议增加query数量或放宽过滤",
+    "检查搜索query构建逻辑，增加多语言query"
+  ],
+  "priority_fixes": [
+    {
+      "priority": "P0",
+      "target": "tools/searcher.py",
+      "problem": "搜索结果过少或为空",
+      "solution": "扩展搜索query数量，增加多语言query，放宽过滤条件",
+      "estimated_impact": "高"
+    },
+    {
+      "priority": "P2",
+      "target": "tools/searcher.py",
+      "problem": "搜索query可能不够精准",
+      "solution": "基于测试结果优化 query 模板，增加行业特定关键词",
+      "estimated_impact": "中"
+    }
+  ],
+  "timestamp": "2026-06-23T21:46:01.969546"
+}

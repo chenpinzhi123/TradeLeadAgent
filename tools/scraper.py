@@ -130,21 +130,30 @@ def _validate_phone_market(phone: str, target_market: str) -> Dict[str, any]:
 
 
 
-def _fetch_page(url: str, timeout: int = 10) -> Optional[str]:
-    """抓取网页内容，带错误处理"""
-    try:
-        resp = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
-        resp.raise_for_status()
-        # 只处理 HTML（宽松检查：某些网站 content-type 不标准）
-        ct = resp.headers.get("content-type", "").lower()
-        if ct and "text/html" not in ct and "application/xhtml" not in ct:
-            # 但如果内容看起来是 HTML，仍然处理
-            if "<html" not in resp.text[:500].lower() and "<!doctype html" not in resp.text[:500].lower():
+def _fetch_page(url: str, timeout: int = 15, max_retries: int = 2) -> Optional[str]:
+    """抓取网页内容，带重试和宽松的 HTML 检测"""
+    for attempt in range(max_retries + 1):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=True)
+            resp.raise_for_status()
+            # 宽松检查：只要内容看起来像 HTML 就处理
+            text = resp.text
+            if "<html" in text[:2000].lower() or "<!doctype" in text[:2000].lower():
+                return text
+            # content-type 明确是 HTML 也处理
+            ct = resp.headers.get("content-type", "").lower()
+            if "text/html" in ct or "application/xhtml" in ct:
+                return text
+            logger.debug(f"非HTML内容，跳过 [{url}] content-type={ct}")
+            return None
+        except Exception as e:
+            if attempt < max_retries:
+                logger.debug(f"抓取失败，重试 [{url}] attempt={attempt+1}: {e}")
+                time.sleep(2 * (attempt + 1))
+            else:
+                logger.debug(f"抓取失败（已重试）[{url}]: {e}")
                 return None
-        return resp.text
-    except Exception as e:
-        logger.debug(f"抓取失败 [{url}]: {e}")
-        return None
+    return None
 
 
 def _extract_emails(text: str) -> List[str]:
@@ -297,6 +306,12 @@ def _find_priority_pages(soup: BeautifulSoup, base_url: str) -> List[str]:
         (r"service|services|solutions|offering|what we do", 5),
         (r"location|locations|offices|headquarters|address|find us", 4),
         (r"partner|partners|distributor|distribution|dealer|reseller", 3),
+        # 阿拉伯语关键词（中东地区）
+        (r"اتصل بنا|معلومات الاتصال|تواصل معنا", 10),   # 联系我们
+        (r"من نحن|عن الشركة|نبذة عنا|عن المؤسسة", 8),       # 关于我们
+        (r"فريق العمل|الإدارة|القادة|مجلس الإدارة", 7),        # 团队/管理层
+        (r"منتجاتنا|المنتجات|كتالوج|منتجات", 6),             # 产品
+        (r"العنوان|الموقع|مقر الشركة|فروعنا", 4),             # 地址/位置
     ]
     
     for a in soup.find_all("a", href=True):
@@ -347,6 +362,59 @@ def _extract_social_links(soup: BeautifulSoup, base_url: str) -> Dict[str, str]:
     return links
 
 
+def _try_common_contact_paths(base_url: str, lead: Dict, timeout: int) -> None:
+    """
+    主动探测常见联系页面（/contact、/about 等），
+    当首页没拿到邮箱时补充抓取。
+    直接修改 lead dict（in-place）。
+    """
+    common_paths = [
+        "/contact", "/contact-us", "/get-in-touch", "/reach-us", "/inquiry", "/enquiry",
+        "/about", "/about-us", "/company", "/who-we-are",
+        "/team", "/our-team", "/leadership",
+        "/products", "/catalog", "/catalogue",
+    ]
+    base = base_url.rstrip("/")
+    for path in common_paths:
+        test_url = base + path
+        page_html = _fetch_page(test_url, timeout)
+        if not page_html:
+            continue
+        new_emails = _extract_emails(page_html)
+        # 同时检查 mailto: 链接
+        try:
+            ps = BeautifulSoup(page_html, "html.parser")
+            for a in ps.find_all("a", href=True):
+                hr = a["href"]
+                if hr.lower().startswith("mailto:"):
+                    em = hr[7:].split("?")[0].strip()
+                    if em and "@" in em and "." in em.split("@")[-1]:
+                        new_emails.append(em)
+        except Exception:
+            pass
+
+        if new_emails:
+            base_domain = base_url.split("/")[2] if "/" in base_url else ""
+            validated = []
+            for e in set(new_emails):
+                v = _validate_email_quality(e, base_domain)
+                if v["is_valid"]:
+                    validated.append(e)
+            if validated:
+                lead["emails"] = list(set(lead.get("emails", []) + validated))
+                lead["email_quality"] = "high" if any(
+                    "@" in e and base_domain in e for e in validated
+                ) else lead.get("email_quality", "medium")
+                lead["scraped"] = True
+                # 顺便抓电话
+                new_phones = _extract_phones(page_html)
+                if new_phones:
+                    lead["phones"] = list(set(lead.get("phones", []) + new_phones))
+                logger.debug(f"常见路径命中: {test_url}")
+                break
+        time.sleep(1)
+
+
 def scrape_lead(lead: Dict) -> Dict:
     """
     对单个潜在客户进行深度抓取
@@ -359,15 +427,54 @@ def scrape_lead(lead: Dict) -> Dict:
         return lead
 
     html = _fetch_page(url, config.SCRAPE_TIMEOUT)
+
+    # 初始失败 → 尝试替代 URL（http/https 互换、www 互换）
+    if not html:
+        alt_urls = []
+        if url.startswith("https://"):
+            alt_urls.append(url.replace("https://", "http://"))
+        elif url.startswith("http://"):
+            alt_urls.append(url.replace("http://", "https://"))
+        if "://www." in url:
+            alt_urls.append(url.replace("://www.", "://", 1))
+        elif "://" in url and "www." not in url:
+            alt_urls.append(url.replace("://", "://www.", 1))
+        for alt in alt_urls:
+            html = _fetch_page(alt, config.SCRAPE_TIMEOUT)
+            if html:
+                url = alt
+                logger.debug(f"替代URL成功: {alt}")
+                break
+
     if not html:
         return lead
 
     try:
         soup = BeautifulSoup(html, "html.parser")
 
-        # 提取联系方式
+        # 新增：首页没拿到邮箱，主动探测常见联系页面
+        if not emails:
+            _try_common_contact_paths(url, lead, config.SCRAPE_TIMEOUT)
+
+        # 提取联系方式（正文正则）
         emails = _extract_emails(html)
         phones = _extract_phones(html)
+
+        # 新增：从 mailto: 链接提取邮箱
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if href.lower().startswith("mailto:"):
+                email = href[7:].split("?")[0].split("<")[0].strip()
+                if email and "@" in email and "." in email.split("@")[-1]:
+                    emails.append(email)
+
+        # 新增：从 tel: 链接提取电话
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if href.lower().startswith("tel:"):
+                phone = re.sub(r"[^\d\s\-+().extEXT]", "", href[4:]).strip()
+                if phone:
+                    phones.append(phone)
 
         # 提取公司信息
         company_info = _extract_company_info(soup, url)
