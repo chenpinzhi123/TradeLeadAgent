@@ -452,13 +452,13 @@ def scrape_lead(lead: Dict) -> Dict:
     try:
         soup = BeautifulSoup(html, "html.parser")
 
-        # 新增：首页没拿到邮箱，主动探测常见联系页面
-        if not emails:
-            _try_common_contact_paths(url, lead, config.SCRAPE_TIMEOUT)
-
         # 提取联系方式（正文正则）
         emails = _extract_emails(html)
         phones = _extract_phones(html)
+
+        # 新增：首页没拿到邮箱，主动探测常见联系页面
+        if not emails:
+            _try_common_contact_paths(url, lead, config.SCRAPE_TIMEOUT)
 
         # 新增：从 mailto: 链接提取邮箱
         for a in soup.find_all("a", href=True):
